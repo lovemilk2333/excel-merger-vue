@@ -1,0 +1,10 @@
+#app {
+  width: 100%;
+  height: 100dvh;
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
