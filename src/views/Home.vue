@@ -252,7 +252,7 @@ function mergeSubjects(newSubjects: SubjectColumnsType) {
     }
 }
 
-watch(step, (val, oldVal) => {
+watch(step, (val) => {
     if (val === 1) {
         resetFiles()
     } else if (val === 2) {

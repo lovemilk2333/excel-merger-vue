@@ -81,8 +81,7 @@ function merge() {
     totalScoreColumns.value.forEach((val) => {
         ea.addTotalScoreColumn(val)
     })
-    const [worksheet, data, errors] = ea.merge()
-    // console.debug('data', data)
+    const [worksheet, _, errors] = ea.merge()
     console.debug('errors', errors)
 
     const workbook = utils.book_new();
