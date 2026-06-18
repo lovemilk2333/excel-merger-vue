@@ -2,8 +2,8 @@
     <div class="subject-selector">
         <Card>
             <template #title>
-                <div class="flex">
-                    {{ title }}
+                <div class="flex gap-4">
+                    <div><span v-html="title"></span></div>
                     <div class="ml-auto flex justify-start">
                         <Button :label="canAddRow ? '添加科目-列对应关系' : '无可用列'" icon="pi pi-plus" size="small" outlined
                             :disabled="!canAddRow" @click="addRow" />
@@ -15,7 +15,6 @@
                 <div class="subject-selector-content flex flex-col gap-4">
                     <div class="subject-selector-item p-x-2 flex gap-2 items-center" v-for="(row, index) in localRows"
                         :key="index">
-
                         <Select placeholder="选择一个列" :options="getFilteredColumns(row.column, row.columnFilterQuery)"
                             v-model="row.column" @change="handleRowChange" class="flex-1">
                             <template #header>
@@ -48,8 +47,7 @@
                                     <div class="relative w-full">
                                         <i
                                             class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-                                        <input type="text" v-model="row.subjectFilterQuery"
-                                            placeholder="输入科目或拼音进行过滤..."
+                                        <input type="text" v-model="row.subjectFilterQuery" placeholder="输入科目或拼音进行过滤..."
                                             class="w-full pl-9 pr-3 py-1.5 text-sm bg-transparent border-none outline-none focus:outline-none focus:ring-0 shadow-none focus:shadow-none"
                                             @click.stop />
                                     </div>
@@ -97,7 +95,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits<{
-    (e: 'update:modelValue', value: Map<ColumnName, SubjectId>): void
+    (e: 'update:modelValue'): void
 }>()
 
 const localRows = ref<MappingRow[]>([]);
@@ -169,18 +167,16 @@ const getFilteredSubjects = (filterValue: string): SubjectId[] => {
 };
 
 const syncToParent = () => {
-    const nextMap = new Map<ColumnName, SubjectId>();
-
-    allColumns.value.forEach(col => nextMap.set(col, SUBJECT_ID.NONE));
+    allColumns.value.forEach(col => props.modelValue.set(col, SUBJECT_ID.NONE));
 
     localRows.value.forEach(row => {
         if (row.column && row.subject) {
-            nextMap.set(row.column, row.subject);
+            props.modelValue.set(row.column, row.subject);
         }
     });
 
     isSelfUpdating = true;
-    emit('update:modelValue', nextMap);
+    emit('update:modelValue');
 };
 
 const addRow = () => {

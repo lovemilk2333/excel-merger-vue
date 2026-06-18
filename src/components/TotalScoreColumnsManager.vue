@@ -17,7 +17,7 @@
                             v-for="(_, index) in modelValue" :key="index">
                             <MultiSelect name="subject" :options="getFilteredSubjects(index)"
                                 :optionLabel="(id) => subjectIdNameMap[id]" placeholder="选择科目"
-                                v-model="modelValue[index].subjects" class="flex-1" @hide="filterTotalColumns">
+                                v-model="modelValue[index].subjects" class="flex-1">
                                 <template #header>
                                     <div class="p-2 border-b border-surface-200 dark:border-surface-700">
                                         <div class="relative w-full">
@@ -45,7 +45,7 @@
                             </div>
 
                             <Message severity="error" variant="outlined" v-if="errors.get(index)">{{ errors.get(index)
-                            }}
+                                }}
                             </Message>
                             <Button icon="pi pi-trash" severity="danger" variant="text" rounded
                                 @click="removeRow(index)" aria-label="删除总分/排名列" />
@@ -64,18 +64,16 @@
 import { ref, watch } from 'vue';
 import { Button, Card, Checkbox, Divider, MultiSelect, Message } from 'primevue';
 import { SUBJECT_ID, SUBJECT_ID_META, type SubjectId, type TotalScoreColumn } from '../core/constants';
-import type { ExcelAdapter } from '../core/core';
 
 const props = withDefaults(defineProps<{
     title?: string
     modelValue: TotalScoreColumn[],
-    ea: ExcelAdapter
+    subjectIds: Exclude<SubjectId, 'none'>[]
 }>(), {
     title: '新增或删除总分/排名列'
 })
 
 const errors = ref<Map<number, string>>(new Map())
-const subjectIds = ref<Exclude<SubjectId, 'none'>[]>([])
 const subjectIdNameMap = Object.fromEntries(Object.values(SUBJECT_ID).map((subjectId) => {
     if (subjectId === SUBJECT_ID.NONE) return []
 
@@ -97,11 +95,12 @@ watch(() => props.modelValue, (newVal) => {
     if (rowFilters.value.length > newVal.length) {
         rowFilters.value.length = newVal.length;
     }
+    totalColumnsErrors()
 }, { immediate: true, deep: true });
 
 
 const getFilteredSubjects = (index: number) => {
-    const currentSubjects = subjectIds.value;
+    const currentSubjects = props.subjectIds;
 
     const filterState = rowFilters.value[index];
     if (!filterState) return currentSubjects;
@@ -136,11 +135,7 @@ function removeRow(index: number) {
     rowFilters.value.splice(index, 1)
 }
 
-function refreshSubjects() {
-    subjectIds.value = props.ea.getSubjectIds()
-}
-
-function filterTotalColumns() {
+function totalColumnsErrors() {
     const subjects = new Set<string>();
 
     errors.value.clear()
@@ -148,7 +143,7 @@ function filterTotalColumns() {
         if (!val.subjects || !val.subjects.length) {
             errors.value.set(index, '请至少选择两门科目, 没有选择科目')
             return false;
-        } else if (val.subjects.length == 1) {
+        } else if (val.subjects.length == 1 && props.subjectIds.length > 1) {  // 支持仅在一门课程时生成排名
             errors.value.set(index, '请至少选择两门科目, 仅选择了一门')
             return false;
         }
@@ -163,10 +158,8 @@ function filterTotalColumns() {
     });
 }
 
-refreshSubjects()
 defineExpose({
-    refreshSubjects,
-    filterTotalColumns,
+    totalColumnsErrors,
     errors
 })
 </script>

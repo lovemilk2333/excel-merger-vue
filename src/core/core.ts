@@ -1,4 +1,4 @@
-import { read, type WorkSheet, utils, type CellObject } from 'xlsx'
+import { read, type WorkSheet, utils, type CellObject, writeFile } from 'xlsx'
 import { COLUMN_TYPE_PRIMARY_KEY, type ExcelAdapterCacheTypeValues, type ColumnName, type ExcelSheetId, type ExcelAdapterCacheTypes, EXCEL_ADAPTER_CACHE_TYPE, type NormalizedSheet, type SubjectId, SUBJECT_ID_META, SUBJECT_ID, COLUMN_TYPE, type TotalScoreColumn, type ExcelSheetIdParsed, type JSONSheetRows, type SubjectColumnsType, type JSONSheetRow, type Score, VALID_SCORE_RANGE, TOTAL_SCORE_NAME, RANK_SCORE_NAME } from './constants'
 import { getColumnType, getExcelColumnName, getSubjectId, normalizeColumnName } from './utils'
 
@@ -108,7 +108,7 @@ export class ExcelAdapter {
 
     private setCache<T extends ExcelAdapterCacheTypes, R = ExcelAdapterCacheTypeValues[T]>(type: T): (val: R) => R {
         return (val: R) => {
-            this.cache.set(type, val as any)
+            this.cache.set(type, structuredClone(val) as any)
             return val
         }
     }
@@ -276,6 +276,10 @@ export class ExcelAdapter {
         } else {
             this.totalScoreColumns.push(meta)
         }
+    }
+
+    clearTotalScoreColumn() {
+        this.totalScoreColumns.length = 0
     }
 
     getSubjectIds() {
@@ -459,5 +463,63 @@ export class ExcelAdapter {
         const worksheet = utils.aoa_to_sheet(rowColumns)
 
         return [worksheet, rowColumns, errors]
+    }
+
+    private generateOutputFilename(): string | null {
+        if (!this.sheets || this.sheets.size === 0) return null;
+
+        const filenames: string[] = [];
+        for (const sheet of this.sheets.values()) {
+            if (sheet.filename) {
+                // 【优化】在这里直接提取纯文件名，避免路径干扰（例如去掉 "examples/"）
+                const parts = sheet.filename.split('/');
+                filenames.push(parts[parts.length - 1]);
+            }
+        }
+
+        if (filenames.length === 0) return null;
+
+        // === 修改核心逻辑：从原有的首尾前缀比对，改为全量字符共有性检查 ===
+
+        // 3. 挑选长度最短的一个文件名作为基准字符串（减少循环次数）
+        const base = filenames.reduce((s1, s2) => s1.length < s2.length ? s1 : s2);
+
+        let common = "";
+
+        // 4. 遍历基准字符串的每一个字符，检查它是否在所有文件名中都存在
+        for (const char of base) {
+            const isCommon = filenames.every(name => name.includes(char));
+            if (isCommon) {
+                common += char;
+            }
+        }
+
+        // 5. 【新增】移除因后缀名相同而被误提取的扩展名（如 .xls, .xlsx, .csv）
+        // 否则 "得分表.xls" 和 "得分表.xls" 会被提取出 "得分表.xls"
+        common = common.replace(/\.(xlsx?|csv)$/i, '');
+
+        // =============================================================
+
+        // 6. 去掉末尾可能残留的连字符或下划线
+        // 1. 定义 NTFS 禁用的字符正则：\ / : * ? " < > |
+        const ntfsInvalidChars = /[\\/:*?"<>|]/g;
+
+        // 2. 将共有部分中的所有 NTFS 禁用字符替换为下划线 '_'
+        let sanitized = common.replace(ntfsInvalidChars, '_');
+
+        // 3. 处理末尾符号：
+        // 去掉末尾的连字符、下划线、括号、空格或中文符号等多余杂质
+        // 这里加入了对中文范围的兼容，防止误删末尾的中文字符
+        const result = sanitized.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]+$/, '');
+
+        console.debug('generateOutputFilename', filenames, '->', result);
+        return result.length > 0 ? result : null;
+    }
+
+    export(worksheet: WorkSheet) {
+        const workbook = utils.book_new();
+        utils.book_append_sheet(workbook, worksheet);
+        const filename = this.generateOutputFilename()
+        writeFile(workbook, filename ? filename + '.xlsx' : 'result.xlsx');
     }
 }

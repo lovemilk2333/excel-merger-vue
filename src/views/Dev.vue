@@ -5,7 +5,6 @@
                 <div class="flex flex-col gap-2">
                     <div class="flex items-center gap-2">
                         <Button label="reset" @click="reset"></Button>
-                        <Button label="refresh subjects" @click="totalColumns?.refreshSubjects()"></Button>
                         <Button label="merge" @click="merge" :disabled="!!totalColumns?.errors.size"></Button>
                     </div>
                     <code>selectedColumns: {{ selectedColumns }}</code>
@@ -19,11 +18,10 @@
             <div class="flex flex-col w-full gap-2" v-for="[id, subjectMap] in subjects.entries()" :key="id">
                 <code>{{ id }}</code>
                 <code>{{ JSON.stringify(Object.fromEntries(subjectMap)) }}</code>
-                <SubjectSelector :title="id" :model-value="subjectMap"
-                    @update:model-value="(nextMap) => subjects?.set(id, nextMap)" />
+                <SubjectSelector :title="id" :model-value="subjectMap" />
             </div>
         </div>
-        <TotalScoreColumnsManager v-model="totalScoreColumns" :ea="ea" ref="totalColumns"></TotalScoreColumnsManager>
+        <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds" ref="totalColumns"></TotalScoreColumnsManager>
     </div>
 </template>
 <script setup lang="ts">
@@ -31,7 +29,7 @@ import ColumnsSelector from '../components/ColumnsSelector.vue';
 import { ref, useTemplateRef } from 'vue';
 import FileUploader from '../components/FileUploader.vue';
 import { ExcelAdapter } from '../core/core.ts';
-import type { ColumnName, ExcelSheetId, SubjectId, TotalScoreColumn } from '../core/constants.ts';
+import type { ColumnName, SubjectColumnsType, SubjectId, TotalScoreColumn } from '../core/constants.ts';
 import { Button, Card } from 'primevue';
 import SubjectSelector from '../components/SubjectSelector.vue';
 import TotalScoreColumnsManager from '../components/TotalScoreColumnsManager.vue';
@@ -41,10 +39,11 @@ const ea = new ExcelAdapter()
 const columns = ref<ColumnName[]>([])
 const selectedColumns = ref<number[]>([])
 const uploader = useTemplateRef('uploader')
-const subjects = ref<Map<ExcelSheetId, Map<ColumnName, SubjectId>> | undefined>()
+const subjects = ref<SubjectColumnsType | undefined>()
 const totalScoreColumns = ref<TotalScoreColumn[]>([])
 // const showTotalScoreColumns = ref(false)
 const totalColumns = useTemplateRef('totalColumns')
+const subjectIds = ref<Exclude<SubjectId, 'none'>[]>([])
 
 async function onUpload(files: File[]) {
     await ea.read(files)
@@ -62,7 +61,7 @@ async function onUpload(files: File[]) {
         subjects: subjectids,
         rank: true
     })
-    totalColumns.value?.refreshSubjects()
+    subjectIds.value = ea.getSubjectIds()
 }
 
 function reset() {
@@ -72,13 +71,13 @@ function reset() {
     ea.init()
     subjects.value = undefined
     totalScoreColumns.value.length = 0
-    totalColumns.value?.refreshSubjects()
+    subjectIds.value.length = 0
 }
 
 function merge() {
     if (!!totalColumns.value?.errors.size) return
     ea.setPrimaryColumns(ea.getSharedColumns()[0].filter((_, index) => selectedColumns.value.includes(index)))
-
+    ea.setSubjectColumns(subjects.value!)
     totalScoreColumns.value.forEach((val) => {
         ea.addTotalScoreColumn(val)
     })
