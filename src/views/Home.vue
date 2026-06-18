@@ -92,7 +92,7 @@
                         </div>
                         <div class="flex pt-2 justify-between">
                             <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
-                            <Button label="完成" severity="secondary" icon="pi pi-check-circle" iconPos="right" @click="step = 1" :disabled="!exported && !exportError"/>
+                            <Button label="完成" severity="secondary" icon="pi pi-check-circle" iconPos="right" @click="resetAll" :disabled="!exported && !exportError"/>
                         </div>
                     </div>
                 </StepPanel>
@@ -156,6 +156,21 @@ const mergeErrors = ref<{ row?: JSONSheetRow, error: Error }[]>([])
 const exportError = ref(false)
 const exportLoading = ref(false)
 const exported = ref(false)
+
+function resetAll() {
+    uploaded.value = false
+    step.value = 1
+    sharedColumns.value.length = 0
+    primaryColumnsIndex.value.length = 0
+    subjects.value = undefined
+    subjectIds.value.length = 0
+    totalScoreColumns.value.length = 0
+    mergeErrors.value.length = 0
+
+    exportError.value = false
+    exportLoading.value = false
+    exported.value = false
+}
 
 function setFiles(uploadedFiles: File[]) {
     ea.read(uploadedFiles)
