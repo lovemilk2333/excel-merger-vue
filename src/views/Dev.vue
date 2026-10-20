@@ -23,8 +23,8 @@
                 <SubjectSelector :title="id" :model-value="subjectMap" />
             </div>
         </div>
-        <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds"
-            ref="totalColumns"></TotalScoreColumnsManager>
+        <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds" ref="totalColumns">
+        </TotalScoreColumnsManager>
     </div>
 </template>
 <script setup lang="ts">

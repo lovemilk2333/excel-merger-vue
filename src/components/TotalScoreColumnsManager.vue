@@ -13,8 +13,8 @@
             <template #content>
                 <div class="total-score-columns-content flex flex-col gap-4 items-stretch">
                     <template v-if="!!modelValue && !!modelValue.length">
-                        <div class="total-score-columns-row flex flex-col gap-3 p-3"
-                            v-for="(row, index) in modelValue" :key="index">
+                        <div class="total-score-columns-row flex flex-col gap-3 p-3" v-for="(row, index) in modelValue"
+                            :key="index">
                             <div class="flex gap-4 items-center justify-stretch flex-wrap">
                                 <MultiSelect name="subject" :options="getFilteredSubjects(index)"
                                     :optionLabel="(id) => subjectIdNameMap[id]" placeholder="选择科目"
@@ -54,8 +54,7 @@
                             <!-- 列级：跳过总分 ≤ n -->
                             <div class="flex flex-wrap items-center gap-3">
                                 <div class="flex items-center gap-2 shrink-0">
-                                    <Checkbox :model-value="isSkipEnabled(row)"
-                                        :inputId="`skip-total-${index}`" binary
+                                    <Checkbox :model-value="isSkipEnabled(row)" :inputId="`skip-total-${index}`" binary
                                         @update:model-value="(v) => setSkipEnabled(row, !!v)" />
                                     <label :for="`skip-total-${index}`" class="select-none text-sm">
                                         跳过总分 ≤ n 的学生（不计算总分与排名）
@@ -64,10 +63,9 @@
                                 <div class="flex flex-wrap items-center gap-2" v-if="isSkipEnabled(row)">
                                     <InputNumber :inputId="`skip-n-${index}`"
                                         :model-value="row.skipAtOrBelow ?? DEFAULT_SKIP_THRESHOLD"
-                                        @update:model-value="(v) => setSkipThreshold(row, v)"
-                                        showButtons :useGrouping="false" buttonLayout="horizontal"
-                                        :minFractionDigits="0" :maxFractionDigits="2" :min="0" fluid
-                                        style="width: 16rem;" />
+                                        @update:model-value="(v) => setSkipThreshold(row, v)" showButtons
+                                        :useGrouping="false" buttonLayout="horizontal" :minFractionDigits="0"
+                                        :maxFractionDigits="2" :min="0" fluid style="width: 16rem;" />
                                 </div>
                             </div>
                         </div>

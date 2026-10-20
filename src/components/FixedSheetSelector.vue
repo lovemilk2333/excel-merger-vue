@@ -10,7 +10,8 @@
             </label>
         </div>
         <div class="flex flex-wrap items-center gap-2 mb-4" v-if="enabled">
-            <Select inputId="fixed-sheet-select" :options="options" optionLabel="label" optionValue="value" v-model="selected" placeholder="选择一个 Sheet" class="min-w-72 flex-1" fluid :disabled="!options.length" />
+            <Select inputId="fixed-sheet-select" :options="options" optionLabel="label" optionValue="value"
+                v-model="selected" placeholder="选择一个 Sheet" class="min-w-72 flex-1" fluid :disabled="!options.length" />
         </div>
     </div>
 </template>

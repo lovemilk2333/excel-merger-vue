@@ -1,110 +1,110 @@
 <template>
-    <div class="home-page flex flex-col items-center justify-center w-full h-full min-h-0 px-4">
-        <div class="stepper-wrap relative w-full max-w-5xl flex flex-col items-center">
-            <h2 class="home-title absolute bottom-full left-1/2 -translate-x-1/2 mb-6 text-4xl font-bold tracking-tight no-select whitespace-nowrap">
+    <div ref="homePageEl" class="home-page flex flex-col items-center justify-center w-full h-full min-h-0 px-4">
+        <div ref="stepperWrapEl" class="stepper-wrap relative w-full max-w-5xl flex flex-col items-stretch">
+            <h2 class="home-title shrink-0 mb-6 text-4xl font-bold tracking-tight no-select text-center">
                 Excel Merger
             </h2>
             <Stepper v-model:value="step" linear class="stepper-root w-full">
-            <StepList>
-                <Step :value="1">选择 Excel 文件</Step>
-                <Step :value="2">选择主键字段</Step>
-                <Step :value="3">设置科目-列对应关系</Step>
-                <Step :value="4">设置总分列</Step>
-                <Step :value="5">合并并导出</Step>
-            </StepList>
-            <StepPanels>
-                <StepPanel :value="1">
-                    <div class="step-content">
-                        <div class="flex flex-col step-content-inside">
-                            <FileUploader ref="uploader"
-                                summary="双击或拖拽到此处以选择 Excel (<code>.xls</code> 或 <code>.xlsx</code>) 文件"
-                                @upload="setFiles">
-                            </FileUploader>
-                        </div>
-                        <div class="flex pt-2 justify-end">
-                            <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
-                                :disabled="!uploaded" />
-                        </div>
-                    </div>
-                </StepPanel>
-                <StepPanel :value="2">
-                    <div class="step-content">
-                        <p class="mt-2 mb-4">
-                            <span class="text-xl">主键字段是一个或多个可以代表唯一学生的字段集合, 用于标识成绩的唯一性</span><br>
-                            <span class="text-gray-300">例如, 选择了 "学生" 和 "班级", 那么代表当且仅当 "学生" 和 "班级" 字段值同时相等时,
-                                才视为两者为同一学生的信息和成绩</span>
-                        </p>
-                        <div class="flex flex-col step-content-inside gap-4">
-                            <ColumnsSelector v-if="!!sharedColumns && !!sharedColumns.length" :columns="sharedColumns"
-                                v-model="primaryColumnsIndex"></ColumnsSelector>
-                            <Message v-else severity="error">没有找到不同表格内的同名字段, 请回退上一步重新选择文件</Message>
-                            <FixedSheetSelector v-if="sheetOptions.length" v-model="fixedSheetId"
-                                :sheet-ids="sheetOptions" />
-                        </div>
-                        <div class="flex pt-2 justify-between">
-                            <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
-                            <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
-                                :disabled="!primaryColumnsIndex.length" />
-                        </div>
-                    </div>
-                </StepPanel>
-                <StepPanel :value="3">
-                    <div class="step-content">
-                        <p class="mt-2 mb-4"><span class="text-xl">通过设置科目-列对应关系, 可以将表格的某一列视为某科成绩, 并绑定到某个学生上,
-                                以便合并数据</span></p>
-                        <Button label="重新自动识别科目-列映射" severity="secondary" icon="pi pi-filter"
-                            @click="mergeSubjects(ea.getSubjectColumns())"></Button>
-                        <div class="flex flex-col step-content-inside" v-if="!!subjects">
-                            <div class="flex flex-col w-full gap-2" v-for="[id, subjectMap] in subjects.entries()"
-                                :key="id">
-                                <SubjectSelector
-                                    :title='`${JSON.parse(id).filename || "-"}<span class="pi pi-angle-right"></span>${JSON.parse(id).sheetname || "-"}`'
-                                    :model-value="subjectMap" />
+                <StepList>
+                    <Step :value="1">选择 Excel 文件</Step>
+                    <Step :value="2">选择主键字段</Step>
+                    <Step :value="3">设置科目-列对应关系</Step>
+                    <Step :value="4">设置总分列</Step>
+                    <Step :value="5">合并并导出</Step>
+                </StepList>
+                <StepPanels>
+                    <StepPanel :value="1">
+                        <div class="step-content">
+                            <div class="flex flex-col step-content-inside">
+                                <FileUploader ref="uploader"
+                                    summary="双击或拖拽到此处以选择 Excel (<code>.xls</code> 或 <code>.xlsx</code>) 文件"
+                                    @upload="setFiles">
+                                </FileUploader>
+                            </div>
+                            <div class="flex pt-2 justify-end">
+                                <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
+                                    :disabled="!uploaded" />
                             </div>
                         </div>
-                        <Message v-else severity="error">错误状态: 科目配置为空, 请回退上一步重新选择文件</Message>
-                        <div class="flex pt-2 justify-between">
-                            <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
-                            <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
-                                :disabled="!subjects?.size" />
+                    </StepPanel>
+                    <StepPanel :value="2">
+                        <div class="step-content">
+                            <p class="mt-2 mb-4">
+                                <span class="text-xl">主键字段是一个或多个可以代表唯一学生的字段集合, 用于标识成绩的唯一性</span><br>
+                                <span class="text-gray-300">例如, 选择了 "学生" 和 "班级", 那么代表当且仅当 "学生" 和 "班级" 字段值同时相等时,
+                                    才视为两者为同一学生的信息和成绩</span>
+                            </p>
+                            <div class="flex flex-col step-content-inside gap-4">
+                                <ColumnsSelector v-if="!!sharedColumns && !!sharedColumns.length"
+                                    :columns="sharedColumns" v-model="primaryColumnsIndex"></ColumnsSelector>
+                                <Message v-else severity="error">没有找到不同表格内的同名字段, 请回退上一步重新选择文件</Message>
+                                <FixedSheetSelector v-if="sheetOptions.length" v-model="fixedSheetId"
+                                    :sheet-ids="sheetOptions" />
+                            </div>
+                            <div class="flex pt-2 justify-between">
+                                <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
+                                <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
+                                    :disabled="!primaryColumnsIndex.length" />
+                            </div>
                         </div>
-                    </div>
-                </StepPanel>
-                <StepPanel :value="4">
-                    <div class="step-content">
-                        <p class="mt-2 mb-4"><span class="text-xl">添加总分列可以新增总分和排名信息, 以便用户查看</span></p>
-                        <div class="flex flex-col step-content-inside">
-                            <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds"
-                                ref="totalColumns"></TotalScoreColumnsManager>
+                    </StepPanel>
+                    <StepPanel :value="3">
+                        <div class="step-content">
+                            <p class="mt-2 mb-4"><span class="text-xl">通过设置科目-列对应关系, 可以将表格的某一列视为某科成绩, 并绑定到某个学生上,
+                                    以便合并数据</span></p>
+                            <Button label="重新自动识别科目-列映射" severity="secondary" icon="pi pi-filter"
+                                @click="mergeSubjects(ea.getSubjectColumns())"></Button>
+                            <div class="flex flex-col step-content-inside" v-if="!!subjects">
+                                <div class="flex flex-col w-full gap-2" v-for="[id, subjectMap] in subjects.entries()"
+                                    :key="id">
+                                    <SubjectSelector
+                                        :title='`${JSON.parse(id).filename || "-"}<span class="pi pi-angle-right"></span>${JSON.parse(id).sheetname || "-"}`'
+                                        :model-value="subjectMap" />
+                                </div>
+                            </div>
+                            <Message v-else severity="error">错误状态: 科目配置为空, 请回退上一步重新选择文件</Message>
+                            <div class="flex pt-2 justify-between">
+                                <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
+                                <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
+                                    :disabled="!subjects?.size" />
+                            </div>
                         </div>
-                        <div class="flex pt-2 justify-between">
-                            <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
-                            <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
-                                :disabled="!!totalColumns?.errors.size" />
+                    </StepPanel>
+                    <StepPanel :value="4">
+                        <div class="step-content">
+                            <p class="mt-2 mb-4"><span class="text-xl">添加总分列可以新增总分和排名信息, 以便用户查看</span></p>
+                            <div class="flex flex-col step-content-inside">
+                                <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds"
+                                    ref="totalColumns"></TotalScoreColumnsManager>
+                            </div>
+                            <div class="flex pt-2 justify-between">
+                                <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
+                                <Button label="下一步" icon="pi pi-arrow-right" iconPos="right" @click="step++"
+                                    :disabled="!!totalColumns?.errors.size" />
+                            </div>
                         </div>
-                    </div>
-                </StepPanel>
-                <StepPanel :value="5">
-                    <div class="step-content">
-                        <p class="mt-2 mb-4"><span class="text-xl">合并数据</span></p>
-                        <div class="flex flex-col">
-                            <Button class="mb-4" :label="exportError ? '重试导出' : '合并并导出'"
-                                :icon="`pi ${exportError ? 'pi-refresh' : 'pi-file-export'}`"
-                                :variant="exportError ? 'outlined' : ''" :severity="exportError ? 'danger' : ''"
-                                iconPos="right" @click="mergeAndExport" :loading="exportLoading" />
-                            <Message v-if="!!mergeErrors && !!mergeErrors.length" severity="error">合并出现错误,
-                                请将日志发送给开发者:<span v-for="error in mergeErrors"><br><code>{{ error }}</code></span>
-                            </Message>
-                            <Message class="mb-4" v-else-if="exported" severity="success">导出成功! 请查看浏览器下载菜单</Message>
+                    </StepPanel>
+                    <StepPanel :value="5">
+                        <div class="step-content">
+                            <p class="mt-2 mb-4"><span class="text-xl">合并数据</span></p>
+                            <div class="flex flex-col">
+                                <Button class="mb-4" :label="exportError ? '重试导出' : '合并并导出'"
+                                    :icon="`pi ${exportError ? 'pi-refresh' : 'pi-file-export'}`"
+                                    :variant="exportError ? 'outlined' : ''" :severity="exportError ? 'danger' : ''"
+                                    iconPos="right" @click="mergeAndExport" :loading="exportLoading" />
+                                <Message v-if="!!mergeErrors && !!mergeErrors.length" severity="error">合并出现错误,
+                                    请将日志发送给开发者:<span v-for="error in mergeErrors"><br><code>{{ error }}</code></span>
+                                </Message>
+                                <Message class="mb-4" v-else-if="exported" severity="success">导出成功! 请查看浏览器下载菜单</Message>
+                            </div>
+                            <div class="flex pt-2 justify-between">
+                                <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
+                                <Button label="完成" severity="secondary" icon="pi pi-check-circle" iconPos="right"
+                                    @click="resetAll" :disabled="!exported && !exportError" />
+                            </div>
                         </div>
-                        <div class="flex pt-2 justify-between">
-                            <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
-                            <Button label="完成" severity="secondary" icon="pi pi-check-circle" iconPos="right"
-                                @click="resetAll" :disabled="!exported && !exportError" />
-                        </div>
-                    </div>
-                </StepPanel>
-            </StepPanels>
+                    </StepPanel>
+                </StepPanels>
             </Stepper>
         </div>
 
@@ -114,28 +114,58 @@
     </div>
 </template>
 <style lang="css" scoped>
+.home-page {
+    overscroll-behavior: contain;
+    overflow: hidden;
+}
+
 .stepper-wrap {
-    transform: translateY(-7.5%);
+    /* 唯一默认偏移：改这里即可（% 相对本元素内容高度） */
+    --stepper-shift: -7.5%;
+
+    max-width: min(64rem, 100%);
+    width: 100%;
+    height: auto;
+    max-height: calc(100dvh - 1.5rem);
+    overflow: hidden;
+    flex: 0 0 auto;
+    transform: translateY(var(--stepper-shift));
+}
+
+.stepper-root {
+    /* 不要 flex-1，避免被拉满视口 */
+    width: 100%;
+    height: auto;
+    max-height: none;
+    display: block;
 }
 
 .step-content {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     box-sizing: border-box;
     padding: 1rem;
+    max-width: 100%;
 }
 
-.step-content>*,
-.step-content-inside>* {
+.step-content>*:not(.step-content-inside) {
     flex-shrink: 0;
 }
 
 .step-content-inside {
-    overflow-y: auto;
+    /* 内容过高时在此滚动；上限保证整块（title+steps+本区）可被 max-height 约束 */
     max-width: 95dvw;
-    max-height: min(70dvh, 100%);
+    max-height: min(50dvh, 28rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
+}
+
+.step-content-inside>* {
+    max-width: 100%;
 }
 </style>
 <script setup lang="ts">
@@ -146,7 +176,7 @@ import StepPanels from 'primevue/steppanels';
 import Step from 'primevue/step';
 import StepPanel from 'primevue/steppanel';
 import Button from 'primevue/button';
-import { ref, useTemplateRef, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import ColumnsSelector from '../components/ColumnsSelector.vue';
 import FixedSheetSelector from '../components/FixedSheetSelector.vue';
 import { ExcelAdapter } from '../core/core.ts';
@@ -156,6 +186,83 @@ import TotalScoreColumnsManager from '../components/TotalScoreColumnsManager.vue
 import { Message } from 'primevue';
 
 const ea = new ExcelAdapter()
+
+const VIEWPORT_EDGE_PAD = 12
+/** 与 CSS `--stepper-shift` 默认值一致 */
+const DEFAULT_SHIFT_CSS = '-7.5vh'
+
+const homePageEl = ref<HTMLElement | null>(null)
+const stepperWrapEl = ref<HTMLElement | null>(null)
+
+function applyShift(value: string) {
+    const wrap = stepperWrapEl.value
+    if (!wrap) return
+    wrap.style.setProperty('--stepper-shift', value)
+}
+
+function updateStepperShift() {
+    const wrap = stepperWrapEl.value
+    const page = homePageEl.value
+    if (!wrap || !page) return
+
+    // 1) 先按默认 -7.5% 布局并测量
+    applyShift(DEFAULT_SHIFT_CSS)
+    void wrap.offsetHeight
+
+    const pageRect = page.getBoundingClientRect()
+    const wrapRect = wrap.getBoundingClientRect()
+    const minTop = pageRect.top + VIEWPORT_EDGE_PAD
+
+    if (wrapRect.top >= minTop - 0.5) {
+        // 默认安全，保持 -7.5%
+        applyShift(DEFAULT_SHIFT_CSS)
+        return
+    }
+
+    // 2) 顶出：从无偏移位置算到刚好贴顶
+    applyShift('0px')
+    void wrap.offsetHeight
+    const top0 = wrap.getBoundingClientRect().top
+    const dy = minTop - top0
+    // dy 通常 ≤ 0；若内容过高，贴顶即可
+    applyShift(`${dy}px`)
+}
+
+let shiftRaf = 0
+let updatingShift = false
+function scheduleShiftUpdate() {
+    if (updatingShift) return
+    cancelAnimationFrame(shiftRaf)
+    shiftRaf = requestAnimationFrame(() => {
+        nextTick(() => {
+            updatingShift = true
+            try {
+                updateStepperShift()
+            } finally {
+                requestAnimationFrame(() => {
+                    updatingShift = false
+                })
+            }
+        })
+    })
+}
+
+let resizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+    applyShift(DEFAULT_SHIFT_CSS)
+    scheduleShiftUpdate()
+    window.addEventListener('resize', scheduleShiftUpdate)
+    resizeObserver = new ResizeObserver(() => scheduleShiftUpdate())
+    if (stepperWrapEl.value) resizeObserver.observe(stepperWrapEl.value)
+    if (homePageEl.value) resizeObserver.observe(homePageEl.value)
+})
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', scheduleShiftUpdate)
+    cancelAnimationFrame(shiftRaf)
+    resizeObserver?.disconnect()
+})
 
 const uploaded = ref(false)
 const uploader = useTemplateRef('uploader')
@@ -321,6 +428,9 @@ watch(step, (val) => {
         }
 
     }
-})
-</script>
 
+    scheduleShiftUpdate()
+})
+
+watch(subjects, () => scheduleShiftUpdate(), { deep: true })
+</script>
