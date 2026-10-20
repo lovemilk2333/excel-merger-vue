@@ -233,6 +233,12 @@ export const RANK_SCORE_NAME = '排名'
 export interface TotalScoreColumn {
     subjects: SubjectId[]
     rank: boolean  // 是否包含排名列
+    /**
+     * 该总分列：合计 ≤ 该阈值时不写总分与排名。
+     * - `null` / `undefined`：不跳过（默认）
+     * - `number`：启用，常见为 `0`
+     */
+    skipAtOrBelow?: number | null
 }
 
 export type Score = number

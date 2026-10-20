@@ -26,13 +26,17 @@
                 </StepPanel>
                 <StepPanel :value="2">
                     <div class="step-content">
-                        <p class="mt-2 mb-4"><span class="text-xl">主键字段是一个或多个可以代表唯一学生的字段集合,
-                                用于标识成绩的唯一性</span><br><span class="text-gray-300">例如, 选择了 "学生" 和 "班级", 那么代表当且仅当 "学生"
-                                和 "班级" 字段值同时相等时, 才视为两者为同一学生的信息和成绩</span></p>
-                        <div class="flex flex-col step-content-inside">
-                            <ColumnsSelector v-if="!!sharedColumns && !!sharedColumns.length" class="mb-4"
-                                :columns="sharedColumns" v-model="primaryColumnsIndex"></ColumnsSelector>
+                        <p class="mt-2 mb-4">
+                            <span class="text-xl">主键字段是一个或多个可以代表唯一学生的字段集合, 用于标识成绩的唯一性</span><br>
+                            <span class="text-gray-300">例如, 选择了 "学生" 和 "班级", 那么代表当且仅当 "学生" 和 "班级" 字段值同时相等时,
+                                才视为两者为同一学生的信息和成绩</span>
+                        </p>
+                        <div class="flex flex-col step-content-inside gap-4">
+                            <ColumnsSelector v-if="!!sharedColumns && !!sharedColumns.length" :columns="sharedColumns"
+                                v-model="primaryColumnsIndex"></ColumnsSelector>
                             <Message v-else severity="error">没有找到不同表格内的同名字段, 请回退上一步重新选择文件</Message>
+                            <FixedSheetSelector v-if="sheetOptions.length" v-model="fixedSheetId"
+                                :sheet-ids="sheetOptions" />
                         </div>
                         <div class="flex pt-2 justify-between">
                             <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
@@ -92,7 +96,8 @@
                         </div>
                         <div class="flex pt-2 justify-between">
                             <Button label="上一步" severity="secondary" icon="pi pi-arrow-left" @click="step--" />
-                            <Button label="完成" severity="secondary" icon="pi pi-check-circle" iconPos="right" @click="resetAll" :disabled="!exported && !exportError"/>
+                            <Button label="完成" severity="secondary" icon="pi pi-check-circle" iconPos="right"
+                                @click="resetAll" :disabled="!exported && !exportError" />
                         </div>
                     </div>
                 </StepPanel>
@@ -118,7 +123,7 @@
 }
 
 .step-content-inside {
-    overflow-y: scroll;
+    overflow-y: auto;
     max-width: 95dvw;
     max-height: 70dvh;
     box-sizing: border-box;
@@ -134,8 +139,9 @@ import StepPanel from 'primevue/steppanel';
 import Button from 'primevue/button';
 import { ref, useTemplateRef, watch } from 'vue';
 import ColumnsSelector from '../components/ColumnsSelector.vue';
+import FixedSheetSelector from '../components/FixedSheetSelector.vue';
 import { ExcelAdapter } from '../core/core.ts';
-import { SUBJECT_ID, type ColumnName, type JSONSheetRow, type SubjectColumnsType, type SubjectId, type TotalScoreColumn } from '../core/constants.ts';
+import { SUBJECT_ID, type ColumnName, type ExcelSheetId, type JSONSheetRow, type SubjectColumnsType, type SubjectId, type TotalScoreColumn } from '../core/constants.ts';
 import SubjectSelector from '../components/SubjectSelector.vue';
 import TotalScoreColumnsManager from '../components/TotalScoreColumnsManager.vue';
 import { Message } from 'primevue';
@@ -147,6 +153,10 @@ const uploader = useTemplateRef('uploader')
 const step = ref(1)
 const sharedColumns = ref<ColumnName[]>([])
 const primaryColumnsIndex = ref<number[]>([])
+/** 已加载 sheet 的 id 列表（步骤 2 锚定选择） */
+const sheetOptions = ref<ExcelSheetId[]>([])
+/** 锚定 sheetId；null = 不锚定 */
+const fixedSheetId = ref<ExcelSheetId | null>(null)
 const subjects = ref<SubjectColumnsType | undefined>()
 const subjectIds = ref<Exclude<SubjectId, 'none'>[]>([])
 const totalScoreColumns = ref<TotalScoreColumn[]>([])
@@ -162,6 +172,8 @@ function resetAll() {
     step.value = 1
     sharedColumns.value.length = 0
     primaryColumnsIndex.value.length = 0
+    sheetOptions.value.length = 0
+    fixedSheetId.value = null
     subjects.value = undefined
     subjectIds.value.length = 0
     totalScoreColumns.value.length = 0
@@ -184,6 +196,8 @@ function resetFiles() {
     subjects.value = void 0
     primaryColumnsIndex.value.length = 0
     sharedColumns.value.length = 0
+    sheetOptions.value.length = 0
+    fixedSheetId.value = null
 }
 
 function filterInvalidSubjects() {
@@ -262,9 +276,16 @@ watch(step, (val) => {
         sharedColumns.value.push(..._sharedColumns)
         primaryColumnsIndex.value.length = 0
         primaryColumnsIndex.value.push(..._selectedColumns)
+
+        sheetOptions.value = ea.getSheetIds()
+        // 已选锚定若不在当前列表中则清空
+        if (fixedSheetId.value && !sheetOptions.value.includes(fixedSheetId.value)) {
+            fixedSheetId.value = null
+        }
     } else if (val === 3) {
         const primaryColumns = sharedColumns.value.filter((_, index) => primaryColumnsIndex.value.includes(index))
         ea.setPrimaryColumns(primaryColumns)
+        ea.setFixedSource(fixedSheetId.value)
         if (!subjects.value) {
             mergeSubjects(ea.getSubjectColumns())
         }
@@ -277,10 +298,13 @@ watch(step, (val) => {
         if (!!subjectIds.value.length) {
             totalScoreColumns.value.push({
                 subjects: subjectIds.value,
-                rank: true
+                rank: true,
+                skipAtOrBelow: null,
             })
         }
     } else if (val === 5) {
+        // 再次同步锚定（防止中途改过）
+        ea.setFixedSource(fixedSheetId.value)
         for (const col of totalScoreColumns.value) {
             if (!col.subjects || !col.subjects.length) continue
 

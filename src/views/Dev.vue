@@ -14,6 +14,8 @@
         </Card>
         <FileUploader ref="uploader" @upload="onUpload" summary="upload test .xls/.xlsx file"></FileUploader>
         <ColumnsSelector :columns="columns" v-model="selectedColumns"></ColumnsSelector>
+        <FixedSheetSelector v-if="sheetOptions.length" v-model="fixedSheetId" :sheet-ids="sheetOptions" />
+        <code v-if="fixedSheetId">fixedSheetId: {{ fixedSheetId }}</code>
         <div class="flex flex-col mt-4 gap-4" v-if="!!subjects">
             <div class="flex flex-col w-full gap-2" v-for="[id, subjectMap] in subjects.entries()" :key="id">
                 <code>{{ id }}</code>
@@ -21,15 +23,17 @@
                 <SubjectSelector :title="id" :model-value="subjectMap" />
             </div>
         </div>
-        <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds" ref="totalColumns"></TotalScoreColumnsManager>
+        <TotalScoreColumnsManager v-model="totalScoreColumns" :subject-ids="subjectIds"
+            ref="totalColumns"></TotalScoreColumnsManager>
     </div>
 </template>
 <script setup lang="ts">
 import ColumnsSelector from '../components/ColumnsSelector.vue';
+import FixedSheetSelector from '../components/FixedSheetSelector.vue';
 import { ref, useTemplateRef } from 'vue';
 import FileUploader from '../components/FileUploader.vue';
 import { ExcelAdapter } from '../core/core.ts';
-import type { ColumnName, SubjectColumnsType, SubjectId, TotalScoreColumn } from '../core/constants.ts';
+import type { ColumnName, ExcelSheetId, SubjectColumnsType, SubjectId, TotalScoreColumn } from '../core/constants.ts';
 import { Button, Card } from 'primevue';
 import SubjectSelector from '../components/SubjectSelector.vue';
 import TotalScoreColumnsManager from '../components/TotalScoreColumnsManager.vue';
@@ -38,10 +42,11 @@ import { utils, writeFile } from 'xlsx';
 const ea = new ExcelAdapter()
 const columns = ref<ColumnName[]>([])
 const selectedColumns = ref<number[]>([])
+const sheetOptions = ref<ExcelSheetId[]>([])
+const fixedSheetId = ref<ExcelSheetId | null>(null)
 const uploader = useTemplateRef('uploader')
 const subjects = ref<SubjectColumnsType | undefined>()
 const totalScoreColumns = ref<TotalScoreColumn[]>([])
-// const showTotalScoreColumns = ref(false)
 const totalColumns = useTemplateRef('totalColumns')
 const subjectIds = ref<Exclude<SubjectId, 'none'>[]>([])
 
@@ -55,11 +60,14 @@ async function onUpload(files: File[]) {
     const [sharedColumns, _selectedColumns] = ea.getSharedColumns()
     columns.value.push(...sharedColumns)
     selectedColumns.value.push(..._selectedColumns)
+    sheetOptions.value = ea.getSheetIds()
+    fixedSheetId.value = null
     subjects.value = ea.getSubjectColumns()
     const subjectids = ea.getSubjectIds()
     totalScoreColumns.value.push({
         subjects: subjectids,
-        rank: true
+        rank: true,
+        skipAtOrBelow: null,
     })
     subjectIds.value = ea.getSubjectIds()
 }
@@ -68,6 +76,8 @@ function reset() {
     uploader.value?.reset()
     columns.value.length = 0
     selectedColumns.value.length = 0
+    sheetOptions.value.length = 0
+    fixedSheetId.value = null
     ea.init()
     subjects.value = undefined
     totalScoreColumns.value.length = 0
@@ -77,6 +87,7 @@ function reset() {
 function merge() {
     if (!!totalColumns.value?.errors.size) return
     ea.setPrimaryColumns(ea.getSharedColumns()[0].filter((_, index) => selectedColumns.value.includes(index)))
+    ea.setFixedSource(fixedSheetId.value)
     ea.setSubjectColumns(subjects.value!)
     totalScoreColumns.value.forEach((val) => {
         ea.addTotalScoreColumn(val)

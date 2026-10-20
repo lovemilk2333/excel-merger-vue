@@ -1,7 +1,9 @@
 import { read, type WorkSheet, utils, type CellObject, writeFile } from 'xlsx'
 import { COLUMN_TYPE_PRIMARY_KEY, type ExcelAdapterCacheTypeValues, type ColumnName, type ExcelSheetId, type ExcelAdapterCacheTypes, EXCEL_ADAPTER_CACHE_TYPE, type NormalizedSheet, type SubjectId, SUBJECT_ID_META, SUBJECT_ID, COLUMN_TYPE, type TotalScoreColumn, type ExcelSheetIdParsed, type SubjectColumnsType, type JSONSheetRow, type Score, VALID_SCORE_RANGE, TOTAL_SCORE_NAME, RANK_SCORE_NAME } from './constants'
 import { getColumnType, getExcelColumnName, getSubjectId, normalizeColumnName } from './utils'
+import { normalizeWorksheet, type SheetNormalizeOptions } from './sheet-normalize'
 
+export type { SheetNormalizeOptions }
 
 export class ExcelAdapter {
     private sheets: Map<ExcelSheetId, NormalizedSheet> = new Map()
@@ -9,6 +11,18 @@ export class ExcelAdapter {
     private primaryColumns: ColumnName[] = []
     private subjectColumns: SubjectColumnsType = new Map()
     private totalScoreColumns: TotalScoreColumn[] = []
+    /** per-sheet normalize options (headerRows / dataStartRow); applied on next read or reNormalize */
+    private sheetNormalizeOptions: Map<ExcelSheetId, SheetNormalizeOptions> = new Map()
+    private defaultNormalizeOptions: SheetNormalizeOptions = {}
+    /** raw worksheets retained so options can re-normalize without re-reading files */
+    private rawSheets: Map<ExcelSheetId, WorkSheet> = new Map()
+    /**
+     * Fixed 源：导出行顺序与名单以此为准。
+     * - `null`：不固定，按各表首次出现顺序
+     * - 文件名：该 Excel 下全部 sheet（按读入顺序）决定行序
+     * - sheetId（`sheetId(filename, sheetname)`）：仅该 sheet
+     */
+    private fixedSource: string | null = null
 
     constructor() {
         this.init()
@@ -18,12 +32,139 @@ export class ExcelAdapter {
         this.primaryColumns.length = 0
         this.subjectColumns.clear()
         this.totalScoreColumns.length = 0
+        this.sheetNormalizeOptions.clear()
+        this.defaultNormalizeOptions = {}
+        this.fixedSource = null
         this.initCache()
     }
 
     initCache() {
         this.sheets.clear()
+        this.rawSheets.clear()
         this.cache.clear()
+    }
+
+    /**
+     * 指定 fixed 源（文件名或 sheetId）。导出时：
+     * - 行顺序 = fixed 中学生出现顺序（同主键首次出现为准）
+     * - 其他表缺成绩时对应科目留空，不改变顺序
+     * - 不在 fixed 中的学生不会出现在结果中
+     */
+    setFixedSource(source: string | null) {
+        this.fixedSource = source
+    }
+
+    getFixedSource(): string | null {
+        return this.fixedSource
+    }
+
+    clearFixedSource() {
+        this.fixedSource = null
+    }
+
+    private isFixedSheet(sheetId: ExcelSheetId, sheet: NormalizedSheet): boolean {
+        if (!this.fixedSource) return false
+        if (sheetId === this.fixedSource) return true
+        if (sheet.filename === this.fixedSource) return true
+        return false
+    }
+
+    /** 将科目成绩折合为可加总分的数值（空/非数字按 0） */
+    private scoreAsNumber(score: Score | string | undefined): number {
+        if (typeof score === 'number' && !Number.isNaN(score)) return score
+        if (score === '' || score == null) return 0
+        const n = Number(score)
+        return Number.isFinite(n) ? n : 0
+    }
+
+    private sumSubjectsForTotal(
+        scores: Map<Exclude<SubjectId, 'none'>, Score | string>,
+        subjects: SubjectId[]
+    ): number {
+        let sum = 0
+        for (const sid of subjects) {
+            if (sid === SUBJECT_ID.NONE) continue
+            sum += this.scoreAsNumber(scores.get(sid as Exclude<SubjectId, 'none'>))
+        }
+        return sum
+    }
+
+    /**
+     * 默认表头/数据行配置（0-based）。未对单个 sheet 单独配置时使用。
+     * 仅影响之后的 read / reNormalizeSheets。
+     */
+    setDefaultNormalizeOptions(options: SheetNormalizeOptions) {
+        this.defaultNormalizeOptions = { ...options }
+    }
+
+    getDefaultNormalizeOptions(): SheetNormalizeOptions {
+        return { ...this.defaultNormalizeOptions }
+    }
+
+    /**
+     * 为指定 sheet 设置表头行 / 数据起始行（0-based）。
+     * @param sheetId `sheetId(filename, sheetname)` 的返回值；也可用 filename+sheetname
+     */
+    setSheetNormalizeOptions(sheetId: ExcelSheetId, options: SheetNormalizeOptions) {
+        this.sheetNormalizeOptions.set(sheetId, { ...options })
+        if (this.rawSheets.has(sheetId)) {
+            this.reNormalizeSheet(sheetId)
+        }
+    }
+
+    getSheetNormalizeOptions(sheetId: ExcelSheetId): SheetNormalizeOptions | undefined {
+        const opt = this.sheetNormalizeOptions.get(sheetId)
+        return opt ? { ...opt } : undefined
+    }
+
+    clearSheetNormalizeOptions(sheetId?: ExcelSheetId) {
+        if (typeof sheetId === 'undefined') {
+            this.sheetNormalizeOptions.clear()
+            this.defaultNormalizeOptions = {}
+        } else {
+            this.sheetNormalizeOptions.delete(sheetId)
+        }
+    }
+
+    getSheetIds(): ExcelSheetId[] {
+        return [...this.sheets.keys()]
+    }
+
+    getNormalizedSheet(sheetId: ExcelSheetId): NormalizedSheet | undefined {
+        return this.sheets.get(sheetId)
+    }
+
+    /**
+     * 在已 read 的前提下，用当前 options 重新规范化全部 sheet（会清 subject/primary 缓存语义相关 cache）。
+     */
+    reNormalizeSheets() {
+        for (const id of this.rawSheets.keys()) {
+            this.reNormalizeSheet(id)
+        }
+        this.primaryColumns.length = 0
+        this.subjectColumns.clear()
+        this.totalScoreColumns.length = 0
+        this.cache.clear()
+    }
+
+    private resolveNormalizeOptions(sheetId: ExcelSheetId): SheetNormalizeOptions {
+        return {
+            ...this.defaultNormalizeOptions,
+            ...this.sheetNormalizeOptions.get(sheetId),
+        }
+    }
+
+    private reNormalizeSheet(sheetId: ExcelSheetId) {
+        const raw = this.rawSheets.get(sheetId)
+        const existing = this.sheets.get(sheetId)
+        if (!raw || !existing) return
+
+        const normalized = normalizeWorksheet(raw, this.resolveNormalizeOptions(sheetId))
+        this.sheets.set(sheetId, {
+            filename: existing.filename,
+            sheetname: existing.sheetname,
+            rows: normalized.rows,
+        })
     }
 
     sheetId(filename: string, sheetname: string) {
@@ -59,50 +200,17 @@ export class ExcelAdapter {
         return [subjectNames.join('') + TOTAL_SCORE_NAME, subjectNames.join('') + RANK_SCORE_NAME]
     }
 
-    private findLastMergedRow(sheet: WorkSheet) {
-        const merges = sheet['!merges'];
-        if (!merges || merges.length === 0) return -1;
-
-        // 1. 过滤出所有“跨列合并”（水平合并）的区域
-        // 并且只关心行范围
-        const mergedRowRanges = merges
-            .filter(range => range.s.c !== range.e.c) // 必须跨列
-            .map(range => ({ start: range.s.r, end: range.e.r }))
-            .sort((a, b) => a.start - b.start); // 按起始行升序排序
-
-        // 2. 验证是否从第 0 行（第一行）开始连续
-        let currentEndRow = -1;
-
-        // 如果没有从第 0 行开始的合并，直接返回 -1
-        if (mergedRowRanges.length === 0 || mergedRowRanges[0].start !== 0) {
-            return -1;
-        }
-
-        currentEndRow = mergedRowRanges[0].end;
-
-        // 3. 贪心检查后续的合并块是否与当前范围连续
-        for (let i = 1; i < mergedRowRanges.length; i++) {
-            const nextChunk = mergedRowRanges[i];
-
-            // 如果下一个合并块的起始行，紧跟在当前结束行的下一行（或在当前范围内，即重叠）
-            if (nextChunk.start <= currentEndRow + 1) {
-                // 更新当前连续合并能到达的最远行
-                currentEndRow = Math.max(currentEndRow, nextChunk.end);
-            } else {
-                // 出现断层，直接中断循环
-                break;
-            }
-        }
-
-        return currentEndRow;
-    }
-
-    private normalizeSheet(filename: NormalizedSheet['filename'], sheetname: NormalizedSheet['sheetname'], sheet: WorkSheet): NormalizedSheet {
-        const range = this.findLastMergedRow(sheet) + 1
+    private normalizeSheet(
+        filename: NormalizedSheet['filename'],
+        sheetname: NormalizedSheet['sheetname'],
+        sheet: WorkSheet,
+        sheetId: ExcelSheetId
+    ): NormalizedSheet {
+        const { rows } = normalizeWorksheet(sheet, this.resolveNormalizeOptions(sheetId))
         return {
             filename,
             sheetname,
-            rows: utils.sheet_to_json(sheet, { range })
+            rows,
         }
     }
 
@@ -320,7 +428,10 @@ export class ExcelAdapter {
             }
 
             for (const sheetname of workbook.SheetNames) {
-                this.sheets.set(this.sheetId(file.name, sheetname), this.normalizeSheet(file.name, sheetname, workbook.Sheets[sheetname]))
+                const id = this.sheetId(file.name, sheetname)
+                const worksheet = workbook.Sheets[sheetname]
+                this.rawSheets.set(id, worksheet)
+                this.sheets.set(id, this.normalizeSheet(file.name, sheetname, worksheet, id))
             }
         }
 
@@ -328,9 +439,46 @@ export class ExcelAdapter {
     }
 
     /**
+     * 按 fixed 源收集学生主键顺序；无 fixed 时返回 null（调用方用 Map 插入序）。
+     */
+    private collectFixedStudentOrder(errors: { row: JSONSheetRow, error: Error }[]): string[] | null {
+        if (!this.fixedSource) return null
+
+        const order: string[] = []
+        const seen = new Set<string>()
+        let matchedSheet = false
+
+        for (const [id, sheet] of this.sheets.entries()) {
+            if (!this.isFixedSheet(id, sheet)) continue
+            matchedSheet = true
+
+            for (const row of sheet.rows) {
+                let studentId: string
+                try {
+                    studentId = this.studentId(row)
+                } catch (e) {
+                    errors.push({ row, error: e as Error })
+                    continue
+                }
+                if (seen.has(studentId)) continue
+                seen.add(studentId)
+                order.push(studentId)
+            }
+        }
+
+        if (!matchedSheet) {
+            throw new Error(
+                `fixed source not found among loaded sheets: ${JSON.stringify(this.fixedSource)}`
+            )
+        }
+
+        return order
+    }
+
+    /**
      * merge all data with the config
      */
-    merge(): [WorkSheet, (string | CellObject)[][], { row: JSONSheetRow, error: Error }[]] {
+    merge(): [WorkSheet, (string | number | CellObject)[][], { row: JSONSheetRow, error: Error }[]] {
         if (!this.sheets.size) {
             throw new Error('at least one excel sheet is required')
         }
@@ -340,7 +488,6 @@ export class ExcelAdapter {
 
         const errors: { row: JSONSheetRow, error: Error }[] = []
         const students = new Map<string, Map<Exclude<SubjectId, 'none'>, Score>>()
-        let studentCount = 0
 
         for (const [id, sheet] of this.sheets.entries()) {
             for (const row of sheet.rows) {
@@ -354,7 +501,6 @@ export class ExcelAdapter {
 
                 if (!students.has(studentId)) {
                     students.set(studentId, new Map())
-                    studentCount += 1
                 }
 
                 const studentData = students.get(studentId)!
@@ -385,6 +531,15 @@ export class ExcelAdapter {
             }
         }
 
+        const fixedOrder = this.collectFixedStudentOrder(errors)
+        // fixed：仅输出 fixed 名单且保持其顺序；缺成绩科目保持为空
+        // 无 fixed：保持各表首次发现顺序
+        const orderedStudentIds: string[] = fixedOrder
+            ? fixedOrder
+            : [...students.keys()]
+
+        const studentCount = orderedStudentIds.length
+
         // subjectIds: {chinese, math, ...}
         // students: {'{"姓名": "aaa", "班级": "0000"}': Map => {chinese: 50, math: 30, ...}}
         const totalScoreColumnsMeta = this.totalScoreColumns.map(val => ({ ...val, names: this.getTotalScoreName(val) }))
@@ -408,32 +563,40 @@ export class ExcelAdapter {
         ]
 
         const RANK_START_ROW = 2
-        const RANK_END_ROW = RANK_START_ROW + studentCount - 1
+        const RANK_END_ROW = studentCount > 0 ? RANK_START_ROW + studentCount - 1 : RANK_START_ROW
         const totalScoreColumnsStart = this.primaryColumns.length + subjectColumns.length
         let totalScoreCurrentIndex = totalScoreColumnsStart
-        const totalScoreColumnsFormulas: (Partial<CellObject> | null)[] = totalScoreColumnsMeta.flatMap(({ subjects, rank }) => {
-            const subjectColumnIndex: number[] = subjects.map(subjectId => subjectColumnsIndexMap[subjectId as Partial<Exclude<SubjectId, 'none'>>]).filter(val => typeof val === 'number')
+        // 每个总分列一组模板；跳过条件按「列配置 skipAtOrBelow」+ 学生合计判定
+        const totalScoreColumnSpecs = totalScoreColumnsMeta.map(({ subjects, rank, skipAtOrBelow }) => {
+            const subjectColumnIndex: number[] = subjects
+                .map(subjectId => subjectColumnsIndexMap[subjectId as Partial<Exclude<SubjectId, 'none'>>])
+                .filter((val): val is number => typeof val === 'number')
             const subjectColumnExcelName: string[] = subjectColumnIndex.map(getExcelColumnName)
 
             const totalColumnName = getExcelColumnName(totalScoreCurrentIndex)
-            // const rankColumnName = getExcelColumnName(totalScoreCurrentIndex + 1)
-
             totalScoreCurrentIndex += rank ? 2 : 1
-            return [
-                { t: 'n', f: `SUM(${subjectColumnExcelName.map(col => `${col}{ROWNUMBER}`).join(',')})` },
-                rank ? { t: 'n', f: `RANK(${totalColumnName}{ROWNUMBER}, \$${totalColumnName}\$${RANK_START_ROW}:\$${totalColumnName}\$${RANK_END_ROW})` } : null
-            ]
+
+            return {
+                subjects,
+                rank,
+                skipAtOrBelow: typeof skipAtOrBelow === 'number' && !Number.isNaN(skipAtOrBelow)
+                    ? skipAtOrBelow
+                    : null as number | null,
+                totalFormula: `SUM(${subjectColumnExcelName.map(col => `${col}{ROWNUMBER}`).join(',')})`,
+                rankFormula: rank
+                    ? `RANK(${totalColumnName}{ROWNUMBER}, \$${totalColumnName}\$${RANK_START_ROW}:\$${totalColumnName}\$${RANK_END_ROW})`
+                    : null as string | null,
+            }
         })
 
-
-        const rowColumns: (string | CellObject)[][] = [
+        const rowColumns: (string | number | CellObject)[][] = [
             header,
         ]
 
-        for (const [studentId, scores] of students.entries()) {
-            const totalScoreColumnsStart = this.primaryColumns.length + subjectColumns.length
+        for (const studentId of orderedStudentIds) {
+            const scores = students.get(studentId) ?? new Map<Exclude<SubjectId, 'none'>, Score>()
             const rowNumber = rowColumns.length + 1  // Excel Row Number (based 1)
-            const row = new Array(totalScoreColumnsStart).fill('')
+            const row: (string | number | CellObject)[] = new Array(totalScoreColumnsStart).fill('')
 
             for (const [primaryKey, primaryValue] of Object.entries(this.parseId(studentId))) {
                 const index = header.indexOf(primaryKey)
@@ -448,14 +611,28 @@ export class ExcelAdapter {
                 row[index] = score
             }
 
-            row.push(
-                ...totalScoreColumnsFormulas
-                    .filter((val): val is Partial<CellObject> => val !== null)
-                    .map(val => ({
-                        ...val,
-                        f: val.f?.replaceAll('{ROWNUMBER}', `${rowNumber}`) || ''
-                    }))
-            )
+            for (const spec of totalScoreColumnSpecs) {
+                const shouldSkip =
+                    spec.skipAtOrBelow !== null &&
+                    this.sumSubjectsForTotal(scores, spec.subjects) <= spec.skipAtOrBelow
+
+                if (shouldSkip) {
+                    row.push('')
+                    if (spec.rank) row.push('')
+                    continue
+                }
+
+                row.push({
+                    t: 'n',
+                    f: spec.totalFormula.replaceAll('{ROWNUMBER}', `${rowNumber}`),
+                })
+                if (spec.rank && spec.rankFormula) {
+                    row.push({
+                        t: 'n',
+                        f: spec.rankFormula.replaceAll('{ROWNUMBER}', `${rowNumber}`),
+                    })
+                }
+            }
 
             rowColumns.push(row)
         }
