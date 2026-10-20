@@ -5,8 +5,87 @@
     <!-- <link rel="icon" type="image/svg+xml" href="/favicon.svg" /> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Excel Merger</title>
+    <style>
+      /*
+       * 首屏加载：对齐 PrimeVue Aura semantic tokens
+       * light content.background = surface.0 = #ffffff
+       * light text.color = surface.700 (slate) = #334155
+       * light text.mutedColor = surface.500 = #64748b
+       * dark  content.background = surface.900 (zinc) = #18181b
+       * dark  text.color = #ffffff
+       * dark  text.mutedColor = zinc.400 = #a1a1aa
+       * primary.500 emerald = #10b981
+       */
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.25rem;
+        background: #ffffff;
+        color: #334155;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        transition: opacity 0.35s ease, visibility 0.35s ease;
+        overflow: hidden;
+        height: 123vh; /* >= 100 + abs(translateY) * 2 */
+        transform: translateY(-11.5%);
+      }
+      #app-splash.app-splash--hide {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #app-splash .app-splash__title {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        user-select: none;
+      }
+      #app-splash .app-splash__sub {
+        margin: 0;
+        font-size: 0.875rem;
+        color: #64748b;
+        user-select: none;
+      }
+      #app-splash .app-splash__spinner {
+        width: 6rem;
+        height: 6rem;
+        border: 3px solid #e2e8f0;
+        border-top-color: #10b981;
+        border-radius: 50%;
+        animation: app-splash-spin 0.75s linear infinite;
+      }
+      #app-splash .app-splash__title {
+          margin-top: 1rem;
+        }
+      @keyframes app-splash-spin {
+        to { transform: rotate(360deg); }
+      }
+      @media (prefers-color-scheme: dark) {
+        #app-splash {
+          background: #18181b;
+          color: #ffffff;
+        }
+        #app-splash .app-splash__sub {
+          color: #a1a1aa;
+        }
+        #app-splash .app-splash__spinner {
+          border-color: #3f3f46;
+          border-top-color: #10b981;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="app-splash" aria-busy="true" aria-live="polite">
+      <div class="app-splash__spinner" aria-hidden="true"></div>
+      <h1 class="app-splash__title">Excel Merger</h1>
+      <p class="app-splash__sub">正在加载…</p>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

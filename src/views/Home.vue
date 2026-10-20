@@ -1,7 +1,10 @@
 <template>
-    <div class="flex flex-col items-center justify-center w-full h-full">
-        <h2 class="text-4xl font-bold tracking-tight my-8 no-select">Excel Merger</h2>
-        <Stepper v-model:value="step" linear>
+    <div class="home-page flex flex-col items-center justify-center w-full h-full min-h-0 px-4">
+        <div class="stepper-wrap relative w-full max-w-5xl flex flex-col items-center">
+            <h2 class="home-title absolute bottom-full left-1/2 -translate-x-1/2 mb-6 text-4xl font-bold tracking-tight no-select whitespace-nowrap">
+                Excel Merger
+            </h2>
+            <Stepper v-model:value="step" linear class="stepper-root w-full">
             <StepList>
                 <Step :value="1">选择 Excel 文件</Step>
                 <Step :value="2">选择主键字段</Step>
@@ -102,7 +105,8 @@
                     </div>
                 </StepPanel>
             </StepPanels>
-        </Stepper>
+            </Stepper>
+        </div>
 
         <!-- <div v-else class="text-red-500"> -->
         <!-- INVALID FILE STATE, PLEASE REFRESH PAGE OR CONTACT DEVELOPERS !!! -->
@@ -110,11 +114,16 @@
     </div>
 </template>
 <style lang="css" scoped>
+.stepper-wrap {
+    transform: translateY(-7.5%);
+}
+
 .step-content {
     display: flex;
     flex-direction: column;
     justify-content: center;
     box-sizing: border-box;
+    padding: 1rem;
 }
 
 .step-content>*,
@@ -125,7 +134,7 @@
 .step-content-inside {
     overflow-y: auto;
     max-width: 95dvw;
-    max-height: 70dvh;
+    max-height: min(70dvh, 100%);
     box-sizing: border-box;
 }
 </style>
@@ -315,8 +324,3 @@ watch(step, (val) => {
 })
 </script>
 
-<style lang="css" scoped>
-.step-content {
-    padding: 1rem;
-}
-</style>
