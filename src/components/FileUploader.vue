@@ -69,11 +69,11 @@
                             <div class="file-name-tip-inner flex items-start gap-2 rounded-lg shadow-lg px-3 py-2">
                                 <span class="file-name-tip-text text-sm break-all select-text cursor-text"
                                     tabindex="0">{{ file.name }}</span>
-                                <Button type="button" icon="pi pi-copy" size="small" text rounded
+                                <!-- <Button type="button" icon="pi pi-copy" size="small" text rounded
                                     :severity="copiedKey === fileKey(file, index) ? 'success' : 'secondary'"
                                     :aria-label="`复制文件名 ${file.name}`"
                                     v-tooltip.top="copiedKey === fileKey(file, index) ? '已复制' : '复制文件名'"
-                                    @click.stop="copyFileName(file.name, fileKey(file, index))" />
+                                    @click.stop="copyFileName(file.name, fileKey(file, index))" /> -->
                             </div>
                         </div>
                     </div>
@@ -126,31 +126,31 @@ function scheduleCloseNameTip(key: string) {
     }, 180)
 }
 
-async function copyFileName(name: string, key: string) {
-    try {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(name)
-        } else {
-            const ta = document.createElement('textarea')
-            ta.value = name
-            ta.setAttribute('readonly', '')
-            ta.style.position = 'fixed'
-            ta.style.left = '-9999px'
-            document.body.appendChild(ta)
-            ta.select()
-            document.execCommand('copy')
-            document.body.removeChild(ta)
-        }
-        copiedKey.value = key
-        if (copiedClearTimer) clearTimeout(copiedClearTimer)
-        copiedClearTimer = setTimeout(() => {
-            if (copiedKey.value === key) copiedKey.value = null
-            copiedClearTimer = null
-        }, 1500)
-    } catch (e) {
-        console.warn('copy file name failed', e)
-    }
-}
+// async function copyFileName(name: string, key: string) {
+//     try {
+//         if (navigator.clipboard?.writeText) {
+//             await navigator.clipboard.writeText(name)
+//         } else {
+//             const ta = document.createElement('textarea')
+//             ta.value = name
+//             ta.setAttribute('readonly', '')
+//             ta.style.position = 'fixed'
+//             ta.style.left = '-9999px'
+//             document.body.appendChild(ta)
+//             ta.select()
+//             document.execCommand('copy')
+//             document.body.removeChild(ta)
+//         }
+//         copiedKey.value = key
+//         if (copiedClearTimer) clearTimeout(copiedClearTimer)
+//         copiedClearTimer = setTimeout(() => {
+//             if (copiedKey.value === key) copiedKey.value = null
+//             copiedClearTimer = null
+//         }, 1500)
+//     } catch (e) {
+//         console.warn('copy file name failed', e)
+//     }
+// }
 
 onBeforeUnmount(() => {
     if (closeTipTimer) clearTimeout(closeTipTimer)

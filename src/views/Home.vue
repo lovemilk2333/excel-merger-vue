@@ -205,7 +205,7 @@ function updateStepperShift() {
     const page = homePageEl.value
     if (!wrap || !page) return
 
-    // 1) 先按默认 -7.5% 布局并测量
+    // 1) 先按默认布局并测量
     applyShift(DEFAULT_SHIFT_CSS)
     void wrap.offsetHeight
 
@@ -214,7 +214,7 @@ function updateStepperShift() {
     const minTop = pageRect.top + VIEWPORT_EDGE_PAD
 
     if (wrapRect.top >= minTop - 0.5) {
-        // 默认安全，保持 -7.5%
+        // 默认安全，保持
         applyShift(DEFAULT_SHIFT_CSS)
         return
     }
